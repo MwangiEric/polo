@@ -1,13 +1,13 @@
 // src/sections/my-backgrounds-section.jsx
 import React, { useState, useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
-import { InputGroup } from '@blueprintjs/core'; // already in your project (from blueprint.css import)
+import { InputGroup } from '@blueprintjs/core';
 import { ImagesGrid } from 'polotno/side-panel/images-grid';
 import { SectionTab } from 'polotno/side-panel';
-import FaImage from '@meronex/icons/fa/FaImage'; // or any icon you like (you have @meronex/icons)
+import FaImage from '@meronex/icons/fa/FaImage';
 
 export const MyBackgroundsPanel = observer(({ store }) => {
-  const [query, setQuery] = useState('cartoon'); // initial/default search
+  const [query, setQuery] = useState('cartoon'); // default search term
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -18,61 +18,70 @@ export const MyBackgroundsPanel = observer(({ store }) => {
 
     const targetUrl = `https://imagapi.vercel.app/api/v1/assets/search?asset_type=backgrounds&q=${encodeURIComponent(searchQuery)}`;
 
-    // Use your CORS proxy (since it works now)
+    // Using your working CORS proxy
     const proxyUrl = `https://cors.ericmwangi13.workers.dev/?url=${encodeURIComponent(targetUrl)}`;
 
     try {
       const response = await fetch(proxyUrl);
       if (!response.ok) {
-        throw new Error(`API returned ${response.status}`);
+        throw new Error(`API returned status ${response.status}`);
       }
+
       const data = await response.json();
 
       if (!data.images || !Array.isArray(data.images)) {
-        throw new Error('Invalid images data');
+        throw new Error('Invalid response: no images array found');
       }
 
-      // Format for Polotno ImagesGrid
+      // Format images for Polotno ImagesGrid
       const formatted = data.images.map((item) => ({
-        src: item.thumbnail || item.thumbnail_src || item.url, // preview (fallback to full if no thumb)
-        url: item.url,                                         // full image for canvas
-        alt: item.title || `Background for ${searchQuery}`,
+        src: item.thumbnail || item.thumbnail_src || item.url, // preview image
+        url: item.url,                                         // full resolution image
+        alt: item.title || `Background - ${searchQuery}`,
       }));
 
       setImages(formatted);
     } catch (err) {
       setError(err.message || 'Failed to load backgrounds');
-      console.error('Fetch error:', err);
+      console.error('Background fetch error:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  // Fetch when query changes
   useEffect(() => {
     fetchImages(query);
-  }, [query]); // auto-refetch when query changes
+  }, [query]);
 
   const handleSearch = (e) => {
     const value = e.target.value.trim();
-    setQuery(value || 'cartoon'); // fallback to default if empty
+    setQuery(value || 'cartoon'); // never allow empty query
   };
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 10 }}>
       <InputGroup
         leftIcon="search"
-        placeholder="Search backgrounds (e.g., cartoon, nature...)"
+        placeholder="Search backgrounds (cartoon, nature, abstract...)"
         value={query}
         onChange={handleSearch}
         style={{ marginBottom: 15 }}
         large
       />
 
-      {loading && <div>Loading...</div>}
-      {error && <div style={{ color: 'red' }}>Error: {error}</div>}
+      {loading && <div style={{ padding: '20px 0', textAlign: 'center' }}>Loading backgrounds...</div>}
+
+      {error && (
+        <div style={{ color: 'red', padding: '10px', textAlign: 'center' }}>
+          Error: {error}
+        </div>
+      )}
 
       {!loading && !error && images.length === 0 && (
-        <div>No results for "{query}". Try another term.</div>
+        <div style={{ padding: '20px 0', textAlign: 'center' }}>
+          No backgrounds found for &quot;{query}&quot;. Try another search term.
+        </div>
       )}
 
       <ImagesGrid
@@ -82,29 +91,32 @@ export const MyBackgroundsPanel = observer(({ store }) => {
         getAlt={(img) => img.alt}
         rowsNumber={3}
         isLoading={loading}
-        loadMore={false} // can add later if API supports pagination
+        loadMore={false} // add pagination later if needed
         onSelect={(img) => {
-          // Set as page background (common for backgrounds)
+          // Most common use-case for backgrounds: set as page background
           store.activePage?.set({
             backgroundImage: img.url,
-            backgroundScaleMode: 'cover', // or 'contain', 'repeat'
+            backgroundScaleMode: 'cover', // options: 'cover', 'contain', 'repeat'
           });
-          // Alternative: add as draggable image element
-          // store.activePage?.addElement({
-          //   type: 'image',
-          //   src: img.url,
-          //   width: 800,
-          //   height: 600,
-          //   x: 100,
-          //   y: 100,
-          // });
+
+          // Alternative: add as regular draggable image
+          /*
+          store.activePage?.addElement({
+            type: 'image',
+            src: img.url,
+            width: 800,
+            height: 600,
+            x: 100,
+            y: 100,
+          });
+          */
         }}
       />
     </div>
   );
 });
 
-// Define the section (like your ShapesSection)
+// Section definition (tab + panel)
 export const MyBackgroundsSection = {
   name: 'my-backgrounds',
   Tab: (props) => (
