@@ -1,3 +1,5 @@
+// Editor.jsx
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { PolotnoContainer, SidePanelWrap, WorkspaceWrap } from 'polotno';
@@ -11,21 +13,23 @@ import { QrSection } from './sections/qr-section';
 import { IconsSection } from './sections/icons-section';
 import { ShapesSection } from './sections/shapes-section';
 import { QuotesSection } from './sections/quotes-section';
-// import { StableDiffusionSection } from './sections/stable-diffusion-section';
 import { StableDiffusionSection } from './sections/dalle2';
 
-// import { useObserver } from 'mobx-react-lite';
-// import sharedStateStore, { updateState } from './store';
+// NEW: Import the combined ImagAPI section (single file with dropdown)
+import { ImagApiSection } from './sections/imagapi';
 
+// Blueprint styles (already present)
 import "@blueprintjs/icons/lib/css/blueprint-icons.css";
 import "@blueprintjs/core/lib/css/blueprint.css";
 import "@blueprintjs/popover2/lib/css/blueprint-popover2.css";
 
+// Create Polotno store
 const store = createStore({
   key: process.env.NEXT_PUBLIC_POLOTNO_API_KEY,
   showCredit: false,
 });
 
+// Optional: add a default page and example element
 const page = store.addPage();
 // page.addElement({
 //   type: 'video',
@@ -36,14 +40,17 @@ const page = store.addPage();
 //   src: 'https://vs.contentportal.link/assets/8b413ea8-7d60-4ebb-bf96-d22f8bf4c87f'
 // });
 
+// Add/reorder your custom sections
 DEFAULT_SECTIONS.push(QrSection);
 DEFAULT_SECTIONS.splice(3, 1, ShapesSection);
 DEFAULT_SECTIONS.splice(3, 0, IconsSection);
 DEFAULT_SECTIONS.push(QuotesSection);
 DEFAULT_SECTIONS.push(StableDiffusionSection);
 
-export const Editor = ({ }) => {
-  
+// Add the new ImagAPI section (with dropdown for all asset types + your ImageKit images)
+DEFAULT_SECTIONS.push(ImagApiSection);
+
+export const Editor = () => {
   return (
     <PolotnoContainer style={{ width: "100vw", height: "100vh" }}>
       <SidePanelWrap>
@@ -60,6 +67,7 @@ export const Editor = ({ }) => {
 
 export default Editor;
 
+// Optional export function (uncomment if needed)
 // export const exportDataURL = async () => {
-//   return await store.toDataURL()
-// }
+//   return await store.toDataURL();
+// };
