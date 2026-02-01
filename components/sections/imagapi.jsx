@@ -2,28 +2,28 @@
 
 import React, { useState, useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
-import { InputGroup, HTMLSelect } from '@blueprintjs/core';
+import { InputGroup, HTMLSelect, Button } from '@blueprintjs/core';
 import { ImagesGrid } from 'polotno/side-panel/images-grid';
 import { SectionTab } from 'polotno/side-panel';
 import FaImages from '@meronex/icons/fa/FaImages';
 
-// List of asset types from your ImagAPI
+// List of asset types supported by your API
 const ASSET_TYPES = [
   { value: 'backgrounds', label: 'Backgrounds', defaultQuery: 'cartoon' },
-  { value: 'icons', label: 'Icons', defaultQuery: 'phone' },
-  { value: 'textures', label: 'Textures', defaultQuery: 'wood' },
-  { value: 'mockups', label: 'Mockups', defaultQuery: 'iphone' },
-  // Add more types here when needed
+  { value: 'icons',       label: 'Icons',       defaultQuery: 'phone' },
+  { value: 'textures',    label: 'Textures',    defaultQuery: 'wood' },
+  { value: 'mockups',     label: 'Mockups',     defaultQuery: 'iphone' },
+  // Add more types here when your API supports them
 ];
 
-// Your personal ImageKit images (add as many as you want)
+// Your own images hosted on ImageKit
 const MY_IMAGEKIT_IMAGES = [
-  { name: 'Location Pin', filename: 'location.png' },
-  { name: 'Store Icon', filename: 'store-icon.png' }, // example
-  { name: 'Sale Badge', filename: 'sale-badge.png' }, // example
-  { name: 'Discount Tag', filename: 'discount.png' }, // example
-  { name: 'Product Placeholder', filename: 'product-placeholder.jpg' }, // example
-  // Keep adding your real filenames here
+  { name: 'Location Pin',     filename: 'location.png' },
+  { name: 'Store Icon',       filename: 'store.png' },
+  { name: 'Sale Badge',       filename: 'sale-badge.png' },
+  { name: 'Discount Tag',     filename: 'discount.png' },
+  { name: 'Product Placeholder', filename: 'product-placeholder.jpg' },
+  // ← Add as many of your real files as you want
 ];
 
 export const ImagApiPanel = observer(({ store }) => {
@@ -38,9 +38,9 @@ export const ImagApiPanel = observer(({ store }) => {
 
   const fetchAssets = async () => {
     if (isMyImages) {
-      // Load your own ImageKit images
+      // Show your own ImageKit images
       const formatted = MY_IMAGEKIT_IMAGES.map(img => ({
-        src: `https://ik.imagekit.io/ericmwangi/${img.filename}?tr=w-200,h-200`, // thumbnail/preview
+        src: `https://ik.imagekit.io/ericmwangi/${img.filename}?tr=w-200,h-200`,
         url: `https://ik.imagekit.io/ericmwangi/${img.filename}`,
         alt: img.name,
       }));
@@ -50,34 +50,54 @@ export const ImagApiPanel = observer(({ store }) => {
       return;
     }
 
-    // Fetch from ImagAPI
+    // Prevent invalid/empty queries that cause 422
+    let safeQuery = (query || '').trim();
+    if (!safeQuery || safeQuery.length < 2) {
+      safeQuery = selectedType?.defaultQuery || 'default';
+      setQuery(safeQuery); // update the input to show fallback
+    }
+
     setLoading(true);
     setError(null);
 
-    let targetUrl = `https://imagapi.vercel.app/api/v1/assets/search?asset_type=\( {assetType}&q= \){encodeURIComponent(query)}`;
+    const targetUrl = `https://imagapi.vercel.app/api/v1/assets/search?asset_type=\( {assetType}&q= \){encodeURIComponent(safeQuery)}`;
 
-    // Optional extra params for certain types
+    // Optional extra params
+    let fullUrl = targetUrl;
     if (assetType === 'icons') {
-      targetUrl += '&style=flat';
+      fullUrl += '&style=flat';
     }
 
-    const proxyUrl = `https://cors.ericmwangi13.workers.dev/?url=${encodeURIComponent(targetUrl)}`;
+    const proxyUrl = `https://cors.ericmwangi13.workers.dev/?url=${encodeURIComponent(fullUrl)}`;
 
     try {
-      const res = await fetch(proxyUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const response = await fetch(proxyUrl);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`API error ${response.status}: ${errorText || 'No details'}`);
+      }
 
-      const formatted = (data.images || []).map(item => ({
+      const data = await response.json();
+
+      if (!data.images || !Array.isArray(data.images)) {
+        throw new Error('Invalid response: no images array');
+      }
+
+      const formatted = data.images.map(item => ({
         src: item.thumbnail || item.thumbnail_src || item.url,
         url: item.url,
         alt: item.title || `${selectedType?.label} item`,
       }));
 
       setImages(formatted);
+
+      // Optional: log total found for debugging
+      if (data.total_found) {
+        console.log(`Found ${data.total_found} total items`);
+      }
     } catch (err) {
       setError(err.message || 'Failed to load assets');
-      console.error('Fetch error:', err);
+      console.error('Fetch failed:', err);
     } finally {
       setLoading(false);
     }
@@ -90,14 +110,22 @@ export const ImagApiPanel = observer(({ store }) => {
   const handleTypeChange = (e) => {
     const newType = e.target.value;
     setAssetType(newType);
-    // Reset query to default for this type
+    // Reset query to default for the selected type
     const defaultQ = ASSET_TYPES.find(t => t.value === newType)?.defaultQuery || '';
     setQuery(defaultQ);
   };
 
+  const handleSearchChange = (e) => {
+    setQuery(e.target.value);
+  };
+
+  const clearSearch = () => {
+    setQuery(selectedType?.defaultQuery || '');
+  };
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 10 }}>
-      {/* Dropdown to switch between asset types */}
+      {/* Dropdown to switch asset type */}
       <HTMLSelect
         value={assetType}
         onChange={handleTypeChange}
@@ -113,22 +141,37 @@ export const ImagApiPanel = observer(({ store }) => {
         <option value="my-images">My ImageKit Images</option>
       </HTMLSelect>
 
-      {/* Search only shown for API types */}
+      {/* Search bar (hidden when viewing your own images) */}
       {!isMyImages && (
         <InputGroup
           leftIcon="search"
           placeholder={`Search ${selectedType?.label.toLowerCase()}...`}
           value={query}
-          onChange={e => setQuery(e.target.value.trim())}
+          onChange={handleSearchChange}
+          rightElement={
+            query && <Button minimal icon="cross" onClick={clearSearch} />
+          }
           style={{ marginBottom: 15 }}
+          large
         />
       )}
 
-      {loading && <div>Loading...</div>}
-      {error && <div style={{ color: 'red' }}>Error: {error}</div>}
+      {loading && (
+        <div style={{ padding: '20px 0', textAlign: 'center' }}>
+          Loading {selectedType?.label.toLowerCase()}...
+        </div>
+      )}
+
+      {error && (
+        <div style={{ color: 'red', padding: '10px', textAlign: 'center' }}>
+          {error}
+        </div>
+      )}
 
       {!loading && !error && images.length === 0 && (
-        <div>No items found{!isMyImages ? ` for "${query}"` : ''}</div>
+        <div style={{ padding: '20px 0', textAlign: 'center' }}>
+          No items found{!isMyImages ? ` for "${query}"` : ''}.
+        </div>
       )}
 
       <ImagesGrid
