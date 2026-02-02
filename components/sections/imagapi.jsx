@@ -7,7 +7,7 @@ import { ImagesGrid } from 'polotno/side-panel/images-grid';
 import { SectionTab } from 'polotno/side-panel';
 import FaImages from '@meronex/icons/fa/FaImages';
 
-// Only the asset types your API actually accepts (from your OpenAPI spec)
+// Valid asset types from your API docs
 const ASSET_TYPES = [
   { value: 'backgrounds',   label: 'Backgrounds',   defaultQuery: 'cartoon' },
   { value: 'icons',         label: 'Icons',         defaultQuery: 'phone' },
@@ -26,27 +26,28 @@ const ASSET_TYPES = [
 export const ImagApiPanel = observer(({ store }) => {
   const [assetType, setAssetType] = useState(ASSET_TYPES[0].value);
   const [query, setQuery] = useState(ASSET_TYPES[0].defaultQuery);
-  const [images, setImages] = useState([]);
+  const [images, setImages] = useState([]);           // thumbnails + metadata
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const selectedType = ASSET_TYPES.find(t => t.value === assetType);
 
-  const fetchAssets = async () => {
-    // Guard 1: must be valid asset_type
-    if (!ASSET_TYPES.some(t => t.value === assetType)) {
-      setError('Invalid asset type selected. Please choose again.');
-      setImages([]);
-      setLoading(false);
-      return;
-    }
-
-    // Guard 2: query must be usable
+  const fetchThumbnails = async () => {
     const safeQuery = (query || '').trim();
+
+    // Skip if query too short or empty
     if (!safeQuery || safeQuery.length < 2) {
       setImages([]);
       setLoading(false);
       setError(null);
+      return;
+    }
+
+    // Safety: only valid asset types
+    if (!ASSET_TYPES.some(t => t.value === assetType)) {
+      setError('Invalid asset type selected. Please choose again.');
+      setImages([]);
+      setLoading(false);
       return;
     }
 
@@ -55,7 +56,6 @@ export const ImagApiPanel = observer(({ store }) => {
 
     const targetUrl = `https://imagapi.vercel.app/api/v1/assets/search?asset_type=\( {assetType}&q= \){encodeURIComponent(safeQuery)}`;
 
-    // Add style for icons if needed
     let fullUrl = targetUrl;
     if (assetType === 'icons') {
       fullUrl += '&style=flat';
@@ -63,7 +63,7 @@ export const ImagApiPanel = observer(({ store }) => {
 
     const proxyUrl = `https://cors.ericmwangi13.workers.dev/?url=${encodeURIComponent(fullUrl)}`;
 
-    console.log('→ Fetching:', proxyUrl); // debug – check this in console
+    console.log('Fetching thumbnails:', proxyUrl);
 
     try {
       const response = await fetch(proxyUrl);
@@ -72,7 +72,7 @@ export const ImagApiPanel = observer(({ store }) => {
         let errorText = '';
         try {
           const json = await response.json();
-          errorText = json.detail?.[0]?.msg || json.detail || 'Unknown error';
+          errorText = json.detail?.[0]?.msg || JSON.stringify(json.detail) || '';
         } catch {
           errorText = await response.text().catch(() => '');
         }
@@ -82,26 +82,32 @@ export const ImagApiPanel = observer(({ store }) => {
       const data = await response.json();
 
       if (!data.images || !Array.isArray(data.images)) {
-        throw new Error('Invalid response format – no images array');
+        throw new Error('Invalid response – no images array');
       }
 
+      // Store thumbnails + full URL metadata
       const formatted = data.images.map(item => ({
-        src: item.thumbnail || item.thumbnail_src || item.url,
-        url: item.url,
+        thumbnail: item.thumbnail || item.thumbnail_src || item.url,
+        fullUrl: item.url,
         alt: item.title || `${selectedType?.label || 'Asset'} item`,
       }));
 
       setImages(formatted);
     } catch (err) {
-      setError(err.message || 'Could not load assets');
-      console.error('Fetch failed:', err);
+      setError(err.message || 'Failed to load thumbnails');
+      console.error('Thumbnail fetch error:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  // Debounced fetch (wait 500ms after user stops typing)
   useEffect(() => {
-    fetchAssets();
+    const delayDebounceFn = setTimeout(() => {
+      fetchThumbnails();
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
   }, [assetType, query]);
 
   const handleSearchChange = (e) => {
@@ -112,14 +118,22 @@ export const ImagApiPanel = observer(({ store }) => {
     setQuery('');
   };
 
+  const addFullImage = (item) => {
+    store.activePage?.addElement({
+      type: 'image',
+      src: item.fullUrl,   // ← only now load full image
+      width: assetType === 'icons' ? 140 : 400,
+      height: assetType === 'icons' ? 140 : 300,
+      keepRatio: true,
+    });
+  };
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 10 }}>
-      {/* Dropdown – only valid API types */}
       <HTMLSelect
         value={assetType}
         onChange={(e) => {
           setAssetType(e.target.value);
-          // Reset to default query for this type
           const defaultQ = ASSET_TYPES.find(t => t.value === e.target.value)?.defaultQuery || '';
           setQuery(defaultQ);
         }}
@@ -134,7 +148,6 @@ export const ImagApiPanel = observer(({ store }) => {
         ))}
       </HTMLSelect>
 
-      {/* Search bar */}
       <InputGroup
         leftIcon="search"
         placeholder={`Search ${selectedType?.label.toLowerCase() || 'assets'}...`}
@@ -149,7 +162,7 @@ export const ImagApiPanel = observer(({ store }) => {
 
       {loading && (
         <div style={{ textAlign: 'center', padding: '30px 0', color: '#666' }}>
-          Loading...
+          Loading thumbnails...
         </div>
       )}
 
@@ -161,7 +174,7 @@ export const ImagApiPanel = observer(({ store }) => {
 
       {!loading && !error && images.length === 0 && query.trim() && (
         <div style={{ textAlign: 'center', padding: '30px 0', color: '#666' }}>
-          No results found for <strong>"{query}"</strong>
+          No results for <strong>"{query}"</strong>
         </div>
       )}
 
@@ -173,18 +186,12 @@ export const ImagApiPanel = observer(({ store }) => {
 
       <ImagesGrid
         images={images}
-        getPreview={img => img.src}
-        getSrc={img => img.url}
+        getPreview={img => img.thumbnail}   // ← thumbnail only in grid
+        getSrc={img => img.thumbnail}       // not used for full load
         rowsNumber={assetType === 'icons' ? 5 : 3}
         isLoading={loading}
         onSelect={img => {
-          store.activePage?.addElement({
-            type: 'image',
-            src: img.url,
-            width: assetType === 'icons' ? 140 : 400,
-            height: assetType === 'icons' ? 140 : 300,
-            keepRatio: true,
-          });
+          addFullImage(img);  // ← load full image only on click
         }}
       />
     </div>
