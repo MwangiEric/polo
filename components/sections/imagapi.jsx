@@ -7,7 +7,7 @@ import { ImagesGrid } from 'polotno/side-panel/images-grid';
 import { SectionTab } from 'polotno/side-panel';
 import FaImages from '@meronex/icons/fa/FaImages';
 
-// ONLY valid asset types your API accepts
+// Only the asset types your API actually accepts (from your OpenAPI spec)
 const ASSET_TYPES = [
   { value: 'backgrounds',   label: 'Backgrounds',   defaultQuery: 'cartoon' },
   { value: 'icons',         label: 'Icons',         defaultQuery: 'phone' },
@@ -33,7 +33,15 @@ export const ImagApiPanel = observer(({ store }) => {
   const selectedType = ASSET_TYPES.find(t => t.value === assetType);
 
   const fetchAssets = async () => {
-    // 1. Validate query first
+    // Guard 1: must be valid asset_type
+    if (!ASSET_TYPES.some(t => t.value === assetType)) {
+      setError('Invalid asset type selected. Please choose again.');
+      setImages([]);
+      setLoading(false);
+      return;
+    }
+
+    // Guard 2: query must be usable
     const safeQuery = (query || '').trim();
     if (!safeQuery || safeQuery.length < 2) {
       setImages([]);
@@ -42,18 +50,12 @@ export const ImagApiPanel = observer(({ store }) => {
       return;
     }
 
-    // 2. Validate asset_type (extra safety)
-    if (!ASSET_TYPES.some(t => t.value === assetType)) {
-      setError('Invalid asset type selected');
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
     const targetUrl = `https://imagapi.vercel.app/api/v1/assets/search?asset_type=\( {assetType}&q= \){encodeURIComponent(safeQuery)}`;
 
+    // Add style for icons if needed
     let fullUrl = targetUrl;
     if (assetType === 'icons') {
       fullUrl += '&style=flat';
@@ -61,31 +63,38 @@ export const ImagApiPanel = observer(({ store }) => {
 
     const proxyUrl = `https://cors.ericmwangi13.workers.dev/?url=${encodeURIComponent(fullUrl)}`;
 
-    console.log('Fetching:', proxyUrl); // debug
+    console.log('→ Fetching:', proxyUrl); // debug – check this in console
 
     try {
       const response = await fetch(proxyUrl);
+
       if (!response.ok) {
-        const text = await response.text().catch(() => 'No details');
-        throw new Error(`API error ${response.status}: ${text}`);
+        let errorText = '';
+        try {
+          const json = await response.json();
+          errorText = json.detail?.[0]?.msg || json.detail || 'Unknown error';
+        } catch {
+          errorText = await response.text().catch(() => '');
+        }
+        throw new Error(`API error ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
 
       if (!data.images || !Array.isArray(data.images)) {
-        throw new Error('Invalid response – no images found');
+        throw new Error('Invalid response format – no images array');
       }
 
       const formatted = data.images.map(item => ({
         src: item.thumbnail || item.thumbnail_src || item.url,
         url: item.url,
-        alt: item.title || `${selectedType?.label} item`,
+        alt: item.title || `${selectedType?.label || 'Asset'} item`,
       }));
 
       setImages(formatted);
     } catch (err) {
-      setError(err.message || 'Failed to load assets');
-      console.error('Fetch error:', err);
+      setError(err.message || 'Could not load assets');
+      console.error('Fetch failed:', err);
     } finally {
       setLoading(false);
     }
@@ -105,9 +114,15 @@ export const ImagApiPanel = observer(({ store }) => {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 10 }}>
+      {/* Dropdown – only valid API types */}
       <HTMLSelect
         value={assetType}
-        onChange={(e) => setAssetType(e.target.value)}
+        onChange={(e) => {
+          setAssetType(e.target.value);
+          // Reset to default query for this type
+          const defaultQ = ASSET_TYPES.find(t => t.value === e.target.value)?.defaultQuery || '';
+          setQuery(defaultQ);
+        }}
         fill
         large
         style={{ marginBottom: 12 }}
@@ -119,36 +134,39 @@ export const ImagApiPanel = observer(({ store }) => {
         ))}
       </HTMLSelect>
 
+      {/* Search bar */}
       <InputGroup
         leftIcon="search"
-        placeholder={`Search ${selectedType?.label.toLowerCase()}...`}
+        placeholder={`Search ${selectedType?.label.toLowerCase() || 'assets'}...`}
         value={query}
         onChange={handleSearchChange}
-        rightElement={query && <Button minimal icon="cross" onClick={handleClear} small />}
+        rightElement={
+          query && <Button minimal icon="cross" onClick={handleClear} small />
+        }
         style={{ marginBottom: 15 }}
         large
       />
 
       {loading && (
-        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+        <div style={{ textAlign: 'center', padding: '30px 0', color: '#666' }}>
           Loading...
         </div>
       )}
 
       {error && (
-        <div style={{ color: 'red', textAlign: 'center', padding: '10px' }}>
+        <div style={{ color: 'red', textAlign: 'center', padding: '15px', background: '#ffebee', borderRadius: 6 }}>
           {error}
         </div>
       )}
 
       {!loading && !error && images.length === 0 && query.trim() && (
-        <div style={{ textAlign: 'center', padding: '20px 0', color: '#666' }}>
-          No results for "{query}"
+        <div style={{ textAlign: 'center', padding: '30px 0', color: '#666' }}>
+          No results found for <strong>"{query}"</strong>
         </div>
       )}
 
       {!loading && !error && images.length === 0 && !query.trim() && (
-        <div style={{ textAlign: 'center', padding: '20px 0', color: '#888' }}>
+        <div style={{ textAlign: 'center', padding: '30px 0', color: '#888' }}>
           Type at least 2 characters to search
         </div>
       )}
