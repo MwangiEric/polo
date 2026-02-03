@@ -5,7 +5,6 @@ import { ImagesGrid } from 'polotno/side-panel/images-grid';
 import { SectionTab } from 'polotno/side-panel';
 import FaImages from '@meronex/icons/fa/FaImages';
 
-// Only valid asset types from your API docs
 const ASSET_TYPES = [
   { value: 'backgrounds',   label: 'Backgrounds',   defaultQuery: 'cartoon' },
   { value: 'icons',         label: 'Icons',         defaultQuery: 'phone' },
@@ -32,8 +31,6 @@ export const ImagApiPanel = observer(({ store }) => {
 
   const fetchAssets = async () => {
     const safeQuery = (query || '').trim();
-
-    // Guard: Query too short
     if (!safeQuery || safeQuery.length < 2) {
       setImages([]);
       setLoading(false);
@@ -44,7 +41,7 @@ export const ImagApiPanel = observer(({ store }) => {
     setLoading(true);
     setError(null);
 
-    // FIX: Standard JavaScript Template Literals
+    // Kept your requested URL structure
     const targetUrl = `https://imagapi.vercel.app/api/v1/assets/search?asset_type=${assetType}&q=${encodeURIComponent(safeQuery)}&n=30`;
 
     let fullUrl = targetUrl;
@@ -52,24 +49,20 @@ export const ImagApiPanel = observer(({ store }) => {
       fullUrl += '&style=flat';
     }
 
-    // FIX: Correct Proxy wrapping
     const proxyUrl = `https://cors.ericmwangi13.workers.dev/?url=${encodeURIComponent(fullUrl)}`;
 
     try {
       const response = await fetch(proxyUrl);
-
       if (!response.ok) {
         const text = await response.text().catch(() => '');
         throw new Error(`API error ${response.status}: ${text}`);
       }
 
       const data = await response.json();
-
       if (!data.images || !Array.isArray(data.images)) {
         throw new Error('Invalid response - no images array');
       }
 
-      // Map API response to Polotno Grid format
       const formatted = data.images.map(item => ({
         thumbnail: item.thumbnail || item.thumbnail_src || item.url,
         fullUrl: item.url,
@@ -85,7 +78,6 @@ export const ImagApiPanel = observer(({ store }) => {
     }
   };
 
-  // Debounce search to save API credits and prevent lag
   useEffect(() => {
     const timer = setTimeout(fetchAssets, 500);
     return () => clearTimeout(timer);
@@ -94,18 +86,38 @@ export const ImagApiPanel = observer(({ store }) => {
   const handleSearchChange = (e) => setQuery(e.target.value);
   const handleClear = () => setQuery('');
 
+  // FIX: Aspect-ratio aware adding to prevent cropping
   const addFullImage = (item) => {
     const fullSrc = item.fullUrl || item.url;
     const initialWidth = assetType === 'icons' ? 180 : 600;
 
-    store.activePage?.addElement({
-      type: 'image',
-      src: fullSrc,
-      x: (store.width / 2) - (initialWidth / 2),
-      y: 100,
-      width: initialWidth,
-      keepRatio: true,
-    });
+    // Use HTML Image to find true dimensions before adding to canvas
+    const img = new Image();
+    img.crossOrigin = "anonymous"; 
+    img.src = fullSrc;
+
+    img.onload = () => {
+      const ratio = img.height / img.width;
+      store.activePage?.addElement({
+        type: 'image',
+        src: fullSrc,
+        x: (store.width / 2) - (initialWidth / 2),
+        y: (store.height / 2) - ((initialWidth * ratio) / 2),
+        width: initialWidth,
+        height: initialWidth * ratio, // Explicitly set height based on natural ratio
+        keepRatio: true,
+      });
+    };
+
+    // Fallback if image fails to load or takes too long
+    img.onerror = () => {
+      store.activePage?.addElement({
+        type: 'image',
+        src: fullSrc,
+        width: initialWidth,
+        keepRatio: true,
+      });
+    };
   };
 
   return (
