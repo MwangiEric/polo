@@ -3,7 +3,6 @@ import { observer } from 'mobx-react-lite';
 import { InputGroup, HTMLSelect, Button } from '@blueprintjs/core';
 import { ImagesGrid } from 'polotno/side-panel/images-grid';
 import { SectionTab } from 'polotno/side-panel';
-import FaImages from '@meronex/icons/fa/FaImages';
 
 const ASSET_TYPES = [
   { value: 'backgrounds',   label: 'Backgrounds',   defaultQuery: 'cartoon' },
