@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { SectionTab } from 'polotno/side-panel';
 import { TextArea, Button, Callout } from '@blueprintjs/core';
-import FaVideo from '@meronex/icons/fa/FaVideo';
 
 export const BtchVidPanel = observer(({ store }) => {
   const [list, setList] = useState('');
