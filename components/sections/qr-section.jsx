@@ -3,7 +3,6 @@ import { observer } from 'mobx-react-lite';
 import { SectionTab } from 'polotno/side-panel';
 import QRCode from 'qrcode';
 import * as svg from 'polotno/utils/svg';
-import FaQrcode from '@meronex/icons/fa/FaQrcode';
 import { Button, InputGroup } from '@blueprintjs/core';
 
 // create svg image for QR code for input text
