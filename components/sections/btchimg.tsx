@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { SectionTab } from 'polotno/side-panel';
 import { TextArea, Button, Callout } from '@blueprintjs/core';
-import FaImages from '@meronex/icons/fa/FaImages';
 
 export const BtchImgPanel = observer(({ store }) => {
   const [list, setList] = useState('');
