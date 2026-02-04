@@ -7,7 +7,6 @@ import { InputGroup, Button, ButtonGroup, Tab, Tabs,
     FileInput, } from '@blueprintjs/core';
 import { SectionTab } from 'polotno/side-panel';
 import { getImageSize } from 'polotno/utils/image';
-import FaBrain from '@meronex/icons/fa/FaBrain';
 import { ImagesGrid } from 'polotno/side-panel/images-grid';
 import axios from 'axios';
 import localforage from 'localforage';
