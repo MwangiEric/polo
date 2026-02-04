@@ -7,7 +7,6 @@ import { useInfiniteAPI } from 'polotno/utils/use-api';
 import { SectionTab } from 'polotno/side-panel';
 import { getKey } from 'polotno/utils/validate-key';
 // import { getImageSize } from 'polotno/utils/image';
-import FdCommentQuotes from '@meronex/icons/fd/FdCommentQuotes';
 
 // import { ImagesGrid } from 'polotno/side-panel/images-grid';
 
