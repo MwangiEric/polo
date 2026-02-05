@@ -18,6 +18,9 @@ import { ShapesSection } from './sections/shapes-section';
 import { QuotesSection } from './sections/quotes-section';
 import { StableDiffusionSection } from './sections/dalle2';
 import { ImagApiSection } from './sections/imagapi';
+
+// New export & batch sections
+import { JsonPilSection } from './sections/jsonpil';
 import { BtchImgSection } from './sections/btchimg';
 import { BtchVidSection } from './sections/btchvid';
 
@@ -37,24 +40,29 @@ const store = createStore({
 });
 
 store.addPage();
-store.enableTimeline(true); // Enable timeline + video support
+//sssss.enableTimeline(true); // Enable timeline & video support
 
 // ─────────────────────────────────────────────
-// Sections – all defaults + your customs
+// Sections — all defaults + your customs
 // ─────────────────────────────────────────────
 const mySections = [
-  ...DEFAULT_SECTIONS,
+  ...DEFAULT_SECTIONS,  // keeps every built-in Polotno tab
+
+  // Your custom sections
   ImagApiSection,
   QrSection,
   ShapesSection,
   IconsSection,
   QuotesSection,
   StableDiffusionSection,
+
+  // New tabs
+  JsonPilSection,
   BtchImgSection,
   BtchVidSection,
 ];
 
-export const Editor = () => {
+export default function Editor() {
   // Dark theme injection
   useEffect(() => {
     const style = document.createElement('style');
@@ -93,18 +101,15 @@ export const Editor = () => {
     `;
     document.head.appendChild(style);
 
-    // Cleanup on unmount
-    return () => {
-      document.head.removeChild(style);
-    };
+    return () => document.head.removeChild(style);
   }, []);
 
   // ─────────────────────────────────────────────
   // JSON Export / Import
   // ─────────────────────────────────────────────
 
-  const handleJsonExport = async () => {
-    // 1. Polotno full JSON
+  const handleJsonExport = () => {
+    // Polotno full JSON
     const polotnoJson = store.toJSON();
     const polotnoStr = JSON.stringify(polotnoJson, null, 2);
     const polotnoBlob = new Blob([polotnoStr], { type: 'application/json' });
@@ -115,7 +120,7 @@ export const Editor = () => {
     pLink.click();
     URL.revokeObjectURL(pUrl);
 
-    // 2. Pillow-friendly JSON
+    // Pillow-ready JSON
     const pillowData = {
       width: store.width,
       height: store.height,
@@ -157,10 +162,9 @@ export const Editor = () => {
         try {
           const json = JSON.parse(ev.target.result);
           store.loadJSON(json);
-          console.log('JSON loaded successfully');
+          console.log('JSON loaded');
         } catch (err) {
           alert("Invalid JSON file");
-          console.error(err);
         }
       };
       reader.readAsText(file);
@@ -185,7 +189,7 @@ export const Editor = () => {
           />
           <Button
             icon="code"
-            text="Get JSONs"
+            text="Export JSONs"
             intent="success"
             minimal
             onClick={handleJsonExport}
@@ -206,6 +210,4 @@ export const Editor = () => {
       </WorkspaceWrap>
     </PolotnoContainer>
   );
-};
-
-export default Editor;
+}
